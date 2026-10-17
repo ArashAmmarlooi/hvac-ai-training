@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Generated image-processing artifacts
+output/
+projects/hvac/output/
+projects/hvac/outputs/
+interview_prep/output/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Secrets
+.env
+.env.*

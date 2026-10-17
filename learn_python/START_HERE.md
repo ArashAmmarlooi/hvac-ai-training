@@ -1,0 +1,1 @@
+Moved. Read `C:\Users\arash\projectWork\Training\README.md` instead. You can delete this `learn_python` folder.
