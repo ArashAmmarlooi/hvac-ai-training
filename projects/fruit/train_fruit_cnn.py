@@ -7,6 +7,8 @@ import cv2
 # NumPy stores the complete dataset as numerical arrays.
 import numpy as np
 
+from prepare_model import create_model
+
 
 # __file__ represents the location of this Python file.
 # .resolve() creates its absolute path.
@@ -156,3 +158,9 @@ validation_indices = np.array(validation_indices, dtype=np.int32)
 # Display the sizes of the training and validation sets.
 print("Training set size:", len(train_indices))
 print("Validation set size:", len(validation_indices))
+
+
+# Build one CNN output for each fruit class.
+model = create_model(number_of_classes=len(class_names))
+
+print(model)
