@@ -36,9 +36,9 @@ drawing (JPG/PNG/PDF→image)
 |-------|------|------|--------|
 | **Foundations** | 1 | Load image with OpenCV / NumPy | Done |
 | | 2 | Separate colors with HSV | Done |
-| | 3 | Clean mask noise (morphology) | **Current** |
-| | 4 | Find contours and bounding boxes | Next |
-| **Create the dataset** | 5 | Define classes (vent, fan, RTU, diffuser, …) | |
+| | 3 | Clean mask noise (morphology) | Done |
+| | 4 | Find contours and bounding boxes | Done |
+| **Create the dataset** | 5 | Define classes (vent, fan, RTU, diffuser, …) | **Current** |
 | | 6 | Collect multiple HVAC drawings | |
 | | 7 | Draw bounding-box annotations | |
 | | 8 | Split train / validation / test | |

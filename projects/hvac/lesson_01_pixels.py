@@ -72,6 +72,17 @@ UPPER_RED_RANGE_1 = np.array([10, 255, 255], dtype=np.uint8)
 LOWER_RED_RANGE_2 = np.array([170, 50, 50], dtype=np.uint8)
 UPPER_RED_RANGE_2 = np.array([179, 255, 255], dtype=np.uint8)
 
+# Ignore contours smaller than 80 square pixels so tiny specks do not clutter
+# the bounding-box visualization.
+MIN_CONTOUR_AREA = 80
+
+# BGR colors used to draw bounding boxes for each HVAC system layer.
+BOX_COLORS_BGR = {
+    "blue": (255, 120, 0),
+    "green": (0, 180, 0),
+    "red": (0, 0, 255),
+}
+
 
 def create_red_mask(hsv_image: np.ndarray) -> np.ndarray:
     """Create one binary mask containing pixels from both red Hue ranges.
@@ -123,20 +134,70 @@ def clean_mask(mask: np.ndarray, kernel: np.ndarray) -> np.ndarray:
 
 
 def find_external_contours(mask: np.ndarray) -> list[np.ndarray]:
-    """Find outside boundaries around connected white regions."""
+    """Find outside boundaries around connected white regions in a binary mask.
 
-    # Search for connected white regions in the binary mask.
+    Args:
+        mask: A cleaned 2D binary image (values 0 and 255) for one color layer.
+
+    Returns:
+        A Python list where each item is a NumPy array of ``(x, y)`` boundary
+        points tracing one separate white island.
+    """
+    # Search for connected white regions in the binary mask. We pass mask.copy()
+    # so OpenCV never mutates the caller's mask array.
     contours, _ = cv2.findContours(
         mask.copy(),
 
         # Return only outside boundaries, not holes inside objects.
         cv2.RETR_EXTERNAL,
 
-        # Store only important boundary points instead of every pixel.
+        # Store only important corner/endpoint coordinates instead of every pixel.
         cv2.CHAIN_APPROX_SIMPLE,
     )
 
     return contours
+
+
+def draw_contour_boxes(
+    annotated_image: np.ndarray,
+    contours: list[np.ndarray],
+    box_color: tuple[int, int, int],
+    min_area: int = MIN_CONTOUR_AREA,
+) -> int:
+    """Draw a bounding box around every contour larger than min_area.
+
+    Args:
+        annotated_image: Copy of the BGR drawing where boxes will be drawn.
+        contours: List of contours returned by find_external_contours().
+        box_color: BGR color tuple (Blue, Green, Red) for the rectangle border.
+        min_area: Minimum contour area in pixels required to keep a region.
+
+    Returns:
+        The number of bounding boxes that passed the area filter and were drawn.
+    """
+    kept_box_count = 0
+
+    for contour in contours:
+        # contourArea measures the area enclosed by the contour boundary.
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+
+        # boundingRect finds the smallest upright rectangle (x, y, width, height)
+        # that completely encloses the contour points.
+        x, y, box_width, box_height = cv2.boundingRect(contour)
+
+        # Draw the rectangle from top-left (x, y) to bottom-right (x + w, y + h).
+        cv2.rectangle(
+            annotated_image,
+            (x, y),
+            (x + box_width, y + box_height),
+            box_color,
+            2,
+        )
+        kept_box_count += 1
+
+    return kept_box_count
 
 
 def save_image(output_path: Path, image: np.ndarray) -> None:
@@ -198,11 +259,24 @@ def main() -> None:
     # dictionary will be populated one color at a time inside the loop.
     cleaned_masks: dict[str, np.ndarray] = {}
 
+    # Copy the original drawing so we can draw bounding boxes on top without
+    # altering the original image array.
+    annotated_image = image.copy()
+
     # items() supplies both the dictionary key and value during each iteration.
     for color_name, original_mask in original_masks.items():
         # Clean the current mask and retain it for display later.
         cleaned_mask = clean_mask(original_mask, kernel)
         cleaned_masks[color_name] = cleaned_mask
+
+        # Step 4: Find external contours on the cleaned mask and draw bounding
+        # boxes around regions larger than MIN_CONTOUR_AREA.
+        contours = find_external_contours(cleaned_mask)
+        kept_boxes = draw_contour_boxes(
+            annotated_image,
+            contours,
+            BOX_COLORS_BGR[color_name],
+        )
 
         # Create descriptive output file paths.
         original_path = OUTPUT_DIRECTORY / f"{color_name}_mask.png"
@@ -222,8 +296,14 @@ def main() -> None:
 
         print(
             f"{color_name.capitalize()}: saved successfully; "
-            f"changed pixels = {changed_pixel_count}"
+            f"changed pixels = {changed_pixel_count}; "
+            f"total contours = {len(contours)}; "
+            f"kept boxes (>= {MIN_CONTOUR_AREA}px) = {kept_boxes}"
         )
+
+    # Save the combined bounding-box image from Step 4.
+    contour_boxes_path = OUTPUT_DIRECTORY / "contour_boxes.png"
+    save_image(contour_boxes_path, annotated_image)
 
     # These diagnostic messages verify paths, dimensions, Python types, and mask
     # values. A correct binary mask should normally contain only 0 and 255.
@@ -239,8 +319,9 @@ def main() -> None:
     display_images = "--no-display" not in sys.argv
 
     if display_images:
-        # Show the source image and before/after masks.
+        # Show the source image, Step 4 contour bounding boxes, and before/after masks.
         cv2.imshow("Original HVAC drawing", image)
+        cv2.imshow("Step 4: Contour bounding boxes", annotated_image)
         cv2.imshow("Original blue mask", original_masks["blue"])
         cv2.imshow("Cleaned blue mask", cleaned_masks["blue"])
         cv2.imshow("Original green mask", original_masks["green"])
